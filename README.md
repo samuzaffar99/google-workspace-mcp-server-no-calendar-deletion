@@ -13,8 +13,9 @@ A Model Context Protocol (MCP) server that provides tools for interacting with G
 ### Calendar Tools
 - `list_events`: List upcoming calendar events with date range filtering
 - `create_event`: Create new calendar events with attendees
-- `update_event`: Update existing calendar events
-- `delete_event`: Delete calendar events
+- The events below were removed from this server for security measures since Google Cloud Calendar API does not have a scope that allows creation but prevents deletion or updates.
+- <s>`update_event`: Update existing calendar events</s>
+- <s>`delete_event`: Delete calendar events</s>
 
 ## Prerequisites
 
@@ -159,7 +160,7 @@ A Model Context Protocol (MCP) server that provides tools for interacting with G
    }
    ```
 
-3. **Update Event**:
+<s>3. **Update Event**:
    ```json
    {
      "eventId": "event_id",
@@ -169,13 +170,15 @@ A Model Context Protocol (MCP) server that provides tools for interacting with G
      "end": "2024-01-24T12:00:00Z"
    }
    ```
+</s>
 
-4. **Delete Event**:
+<s>4. **Delete Event**:
    ```json
    {
      "eventId": "event_id"
    }
    ```
+</s>
 
 ## Troubleshooting
 
