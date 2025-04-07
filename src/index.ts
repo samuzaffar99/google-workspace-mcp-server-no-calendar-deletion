@@ -204,6 +204,10 @@ class GoogleWorkspaceServer {
             required: ['summary', 'start', 'end']
           },
         },
+        /**
+        * Removing event deletion because Google Calendar API does 
+        * not have a scope that allows event creation but
+        * prohibits deletion/updates.
         {
           name: 'update_event',
           description: 'Update an existing calendar event',
@@ -257,6 +261,7 @@ class GoogleWorkspaceServer {
             required: ['eventId']
           },
         },
+        */
       ],
     }));
 
@@ -274,10 +279,10 @@ class GoogleWorkspaceServer {
           return await this.handleListEvents(request.params.arguments);
         case 'create_event':
           return await this.handleCreateEvent(request.params.arguments);
-        case 'update_event':
-          return await this.handleUpdateEvent(request.params.arguments);
-        case 'delete_event':
-          return await this.handleDeleteEvent(request.params.arguments);
+        // case 'update_event':
+        //   return await this.handleUpdateEvent(request.params.arguments);
+        // case 'delete_event':
+        //   return await this.handleDeleteEvent(request.params.arguments);
         default:
           throw new McpError(
             ErrorCode.MethodNotFound,
@@ -525,7 +530,9 @@ class GoogleWorkspaceServer {
       };
     }
   }
-
+  /**
+  / Update and remove calendar events are disable.
+  
   private async handleUpdateEvent(args: any) {
     try {
       const { eventId, summary, location, description, start, end, attendees } = args;
@@ -606,6 +613,7 @@ class GoogleWorkspaceServer {
       };
     }
   }
+  */
 
   private async handleListEvents(args: any) {
     try {
