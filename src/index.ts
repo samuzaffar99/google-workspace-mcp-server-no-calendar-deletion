@@ -237,10 +237,8 @@ class GoogleWorkspaceServer {
           return await this.handleListEvents(request.params.arguments);
         case 'create_event':
           return await this.handleCreateEvent(request.params.arguments);
-        // case 'update_event':
-        //   return await this.handleUpdateEvent(request.params.arguments);
-        // case 'delete_event':
-        //   return await this.handleDeleteEvent(request.params.arguments);
+        case 'meeting_suggestion':
+          return await this.handleMeetingSuggestion(request.params.arguments);
         default:
           throw new McpError(
             ErrorCode.MethodNotFound,
