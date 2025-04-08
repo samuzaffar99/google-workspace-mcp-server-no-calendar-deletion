@@ -542,14 +542,15 @@ class GoogleWorkspaceServer {
     const maxDaysToLookAhead = args?.maxDaysToLookAhead || 30; // New parameter with default
     const bankHolidays = args?.bankHolidays || [];
     
-    // Parse start date if provided, otherwise use today
+    // Parse start date if provided, otherwise use tomorrow.
     let startDate;
-    if (args?.startDate) {
-      startDate = new Date(args.startDate);
-    } else {
-      startDate = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
-    }
-    startDate.setHours(0,0,0,0);
+if (args?.startDate) {
+  startDate = new Date(args.startDate);
+} else {
+  startDate = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
+  startDate.setDate(startDate.getDate() + 1); // Add 1 day to default to tomorrow
+}
+startDate.setHours(0,0,0,0);
 
     const suggestions: any[] = [];
     let daysWithSlotsFound = 0; // Track days with slots
