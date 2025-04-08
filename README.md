@@ -38,6 +38,16 @@ A Model Context Protocol (MCP) server that provides tools for interacting with G
 
 ## Setup Instructions
 
+### Installing via Smithery
+
+To install Google Workspace Server - No Calendar Deletion for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@erickva/google-workspace-mcp-server-no-calendar-deletetion):
+
+```bash
+npx -y @smithery/cli install @erickva/google-workspace-mcp-server-no-calendar-deletetion --client claude
+```
+
+### Installing Manually
+
 1. **Clone and Install**:
    ```bash
    git clone https://github.com/epaproditus/google-workspace-mcp-server.git
