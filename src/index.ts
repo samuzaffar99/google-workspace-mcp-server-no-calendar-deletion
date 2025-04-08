@@ -539,20 +539,27 @@ class GoogleWorkspaceServer {
     const timezone = args?.timezone || 'America/Sao_Paulo';
     const slotsPerDay = args?.slotsPerDay || 1;
     const daysToSearch = args?.daysToSearch || 3;
+    const maxDaysToLookAhead = args?.maxDaysToLookAhead || 30; // New parameter with default
     const bankHolidays = args?.bankHolidays || [];
+    
+    // Parse start date if provided, otherwise use today
+    let startDate;
+    if (args?.startDate) {
+      startDate = new Date(args.startDate);
+    } else {
+      startDate = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
+    }
+    startDate.setHours(0,0,0,0);
 
     const suggestions: any[] = [];
     let daysWithSlotsFound = 0; // Track days with slots
 
-    const today = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
-    today.setHours(0,0,0,0);
-
-    const endDate = new Date(today);
-    endDate.setDate(endDate.getDate() + 30);
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + maxDaysToLookAhead);
 
     const busyResponse = await this.calendar.freebusy.query({
       requestBody: {
-        timeMin: today.toISOString(),
+        timeMin: startDate.toISOString(),
         timeMax: endDate.toISOString(),
         timeZone: timezone,
         items: [{ id: 'primary' }],
@@ -561,7 +568,7 @@ class GoogleWorkspaceServer {
     const busySlots = (busyResponse.data.calendars?.primary?.busy || [])
       .filter((slot): slot is { start: string; end: string } => !!slot.start && !!slot.end);
 
-    const dayPointer = new Date(today);
+    const dayPointer = new Date(startDate);
     while (daysWithSlotsFound < daysToSearch && dayPointer < endDate) {
       const dayOfWeek = dayPointer.getDay();
       const formattedDate = dayPointer.toISOString().split('T')[0];
