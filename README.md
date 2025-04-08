@@ -1,3 +1,5 @@
+[![smithery badge](https://smithery.ai/badge/@erickva/google-workspace-mcp-server-no-calendar-deletetion)](https://smithery.ai/server/@erickva/google-workspace-mcp-server-no-calendar-deletetion)
+
 # Google Workspace MCP Server
 
 A Model Context Protocol (MCP) server that provides tools for interacting with Gmail and Calendar APIs. This server enables you to manage your emails and calendar events programmatically through the MCP interface.
