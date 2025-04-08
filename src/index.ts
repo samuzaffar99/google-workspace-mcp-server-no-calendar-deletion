@@ -532,122 +532,141 @@ class GoogleWorkspaceServer {
   }
 
   private async handleMeetingSuggestion(args: any) {
-    try {
-      const meetingLength = args?.meetingLengthMinutes || 60;
-      const workStartHour = args?.workingHoursStart || 9;
-      const workEndHour = args?.workingHoursEnd || 17;
-      const timezone = args?.timezone || 'America/Sao_Paulo';
-      const slotsPerDay = args?.slotsPerDay || 1;
-      const daysToSearch = args?.daysToSearch || 3;
-      const bankHolidays = args?.bankHolidays || [];
-  
-      const suggestions: any[] = [];
-  
-      const today = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
-      today.setHours(0,0,0,0);
-  
-      const endDate = new Date(today);
-      endDate.setDate(endDate.getDate() + 30);
-  
-      const busyResponse = await this.calendar.freebusy.query({
-        requestBody: {
-          timeMin: today.toISOString(),
-          timeMax: endDate.toISOString(),
-          timeZone: timezone,
-          items: [{ id: 'primary' }],
-        },
-      });
+  try {
+    const meetingLength = args?.meetingLengthMinutes || 60;
+    const workStartHour = args?.workingHoursStart || 9;
+    const workEndHour = args?.workingHoursEnd || 17;
+    const timezone = args?.timezone || 'America/Sao_Paulo';
+    const slotsPerDay = args?.slotsPerDay || 1;
+    const daysToSearch = args?.daysToSearch || 3;
+    const bankHolidays = args?.bankHolidays || [];
 
-      const busySlots = (busyResponse.data.calendars?.primary?.busy || [])
-  .filter((slot): slot is { start: string; end: string } => !!slot.start && !!slot.end);
-  
-      const dayPointer = new Date(today);
+    const suggestions: any[] = [];
+    let daysWithSlotsFound = 0; // Track days with slots
 
-      while (suggestions.length < daysToSearch && dayPointer < endDate) {
-        const dayOfWeek = dayPointer.getDay();
-        const formattedDate = dayPointer.toISOString().split('T')[0];
-        if (dayOfWeek !== 0 && dayOfWeek !== 6 && !bankHolidays.includes(formattedDate)) {
-          const dayStart = new Date(dayPointer);
-          dayStart.setHours(workStartHour, 0, 0, 0);
-  
-          const dayEnd = new Date(dayPointer);
-          dayEnd.setHours(workEndHour, 0, 0, 0);
-  
-          const freeSlots = this.findFreeSlots(busySlots, dayStart, dayEnd, meetingLength);
-  
-          if (freeSlots.length > 0) {
-            suggestions.push(...freeSlots.slice(0, slotsPerDay).map(slot => ({
-              start: slot.start.toISOString(),
-              end: slot.end.toISOString(),
-            })));
-          }
+    const today = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
+    today.setHours(0,0,0,0);
+
+    const endDate = new Date(today);
+    endDate.setDate(endDate.getDate() + 30);
+
+    const busyResponse = await this.calendar.freebusy.query({
+      requestBody: {
+        timeMin: today.toISOString(),
+        timeMax: endDate.toISOString(),
+        timeZone: timezone,
+        items: [{ id: 'primary' }],
+      },
+    });
+    const busySlots = (busyResponse.data.calendars?.primary?.busy || [])
+      .filter((slot): slot is { start: string; end: string } => !!slot.start && !!slot.end);
+
+    const dayPointer = new Date(today);
+    while (daysWithSlotsFound < daysToSearch && dayPointer < endDate) {
+      const dayOfWeek = dayPointer.getDay();
+      const formattedDate = dayPointer.toISOString().split('T')[0];
+      if (dayOfWeek !== 0 && dayOfWeek !== 6 && !bankHolidays.includes(formattedDate)) {
+        const dayStart = new Date(dayPointer);
+        dayStart.setHours(workStartHour, 0, 0, 0);
+
+        const dayEnd = new Date(dayPointer);
+        dayEnd.setHours(workEndHour, 0, 0, 0);
+
+        const freeSlots = this.findFreeSlots(busySlots, dayStart, dayEnd, meetingLength);
+
+        if (freeSlots.length > 0) {
+          // Add slots for this day and increment the counter
+          suggestions.push(...freeSlots.slice(0, slotsPerDay).map(slot => ({
+            start: slot.start.toISOString(),
+            end: slot.end.toISOString(),
+          })));
+          daysWithSlotsFound++; // Count this as a day with slots
         }
-  
-        dayPointer.setDate(dayPointer.getDate() + 1);
       }
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(suggestions, null, 2),
-          },
-        ],
-      };
-    } catch (error: any) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Error suggesting meetings: ${error.message}`,
-          },
-        ],
-        isError: true,
-      };
+      dayPointer.setDate(dayPointer.getDate() + 1);
     }
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(suggestions, null, 2),
+        },
+      ],
+    };
+  } catch (error: any) {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Error suggesting meetings: ${error.message}`,
+        },
+      ],
+      isError: true,
+    };
   }
+}
 
   private findFreeSlots(
-    busySlots: Array<{ start: string; end: string }>,
-    dayStart: Date,
-    dayEnd: Date,
-    meetingLengthMinutes: number
-  ): Array<{ start: Date; end: Date }> {
-    const freeSlots: Array<{ start: Date; end: Date }> = [];
-    let pointer = new Date(dayStart);
+  busySlots: Array<{ start: string; end: string }>,
+  dayStart: Date,
+  dayEnd: Date,
+  meetingLengthMinutes: number
+): Array<{ start: Date; end: Date }> {
+  const freeSlots: Array<{ start: Date; end: Date }> = [];
+  let pointer = new Date(dayStart);
   
-    busySlots
-      .filter((slot) => new Date(slot.start) < dayEnd && new Date(slot.end) > dayStart)
-      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
-      .forEach((busy) => {
-        const busyStart = new Date(busy.start);
-        const busyEnd = new Date(busy.end);
+  // Sort busy slots by start time
+  const sortedBusySlots = busySlots
+    .filter((slot) => new Date(slot.start) < dayEnd && new Date(slot.end) > dayStart)
+    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
   
-        if (pointer < busyStart) {
-          const gapMinutes = (busyStart.getTime() - pointer.getTime()) / (60 * 1000);
-          if (gapMinutes >= meetingLengthMinutes) {
-            freeSlots.push({
-              start: new Date(pointer),
-              end: new Date(pointer.getTime() + meetingLengthMinutes * 60000),
-            });
-          }
-        }
-  
-        if (pointer < busyEnd) pointer = new Date(busyEnd);
-      });
-  
-    if (pointer < dayEnd) {
-      const gapMinutes = (dayEnd.getTime() - pointer.getTime()) / (60 * 1000);
+  // Find free periods between busy slots
+  for (const busy of sortedBusySlots) {
+    const busyStart = new Date(busy.start);
+    const busyEnd = new Date(busy.end);
+    
+    // Check if there's a free period before this busy slot
+    if (pointer < busyStart) {
+      const gapMinutes = (busyStart.getTime() - pointer.getTime()) / (60 * 1000);
+      
+      // If gap is large enough, add multiple meeting slots
       if (gapMinutes >= meetingLengthMinutes) {
+        // Add as many meeting slots as will fit in this gap
+        const slotsToAdd = Math.floor(gapMinutes / meetingLengthMinutes);
+        for (let i = 0; i < slotsToAdd; i++) {
+          const slotStart = new Date(pointer.getTime() + i * meetingLengthMinutes * 60000);
+          freeSlots.push({
+            start: new Date(slotStart),
+            end: new Date(slotStart.getTime() + meetingLengthMinutes * 60000),
+          });
+        }
+      }
+    }
+    
+    // Move pointer past this busy slot
+    if (pointer < busyEnd) pointer = new Date(busyEnd);
+  }
+  
+  // Check for any remaining free time at the end of the day
+  if (pointer < dayEnd) {
+    const gapMinutes = (dayEnd.getTime() - pointer.getTime()) / (60 * 1000);
+    
+    if (gapMinutes >= meetingLengthMinutes) {
+      // Add as many meeting slots as will fit in this gap
+      const slotsToAdd = Math.floor(gapMinutes / meetingLengthMinutes);
+      for (let i = 0; i < slotsToAdd; i++) {
+        const slotStart = new Date(pointer.getTime() + i * meetingLengthMinutes * 60000);
         freeSlots.push({
-          start: new Date(pointer),
-          end: new Date(pointer.getTime() + meetingLengthMinutes * 60000),
+          start: new Date(slotStart),
+          end: new Date(slotStart.getTime() + meetingLengthMinutes * 60000),
         });
       }
     }
-  
-    return freeSlots;
   }
+  
+  return freeSlots;
+}
 
 
   async run() {
