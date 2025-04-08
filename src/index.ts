@@ -563,7 +563,7 @@ startDate.setHours(0,0,0,0);
         timeMin: startDate.toISOString(),
         timeMax: endDate.toISOString(),
         timeZone: timezone,
-        items: [{ id: 'primary' }],
+        items: [{ id: 'camilagolin3@gmail.com' }],
       },
     });
     const busySlots = (busyResponse.data.calendars?.primary?.busy || [])
