@@ -558,7 +558,8 @@ class GoogleWorkspaceServer {
         },
       });
 
-      const busySlots = busyResponse.data.calendars?.primary?.busy || [];
+      const busySlots = (busyResponse.data.calendars?.primary?.busy || [])
+  .filter((slot): slot is { start: string; end: string } => !!slot.start && !!slot.end);
   
       const dayPointer = new Date(today);
 
@@ -606,21 +607,29 @@ class GoogleWorkspaceServer {
     }
   }
 
-  private findFreeSlots(busySlots, dayStart, dayEnd, meetingLengthMinutes) {
-    const freeSlots = [];
+  private findFreeSlots(
+    busySlots: Array<{ start: string; end: string }>,
+    dayStart: Date,
+    dayEnd: Date,
+    meetingLengthMinutes: number
+  ): Array<{ start: Date; end: Date }> {
+    const freeSlots: Array<{ start: Date; end: Date }> = [];
     let pointer = new Date(dayStart);
   
     busySlots
-      .filter(slot => new Date(slot.start) < dayEnd && new Date(slot.end) > dayStart)
-      .sort((a, b) => new Date(a.start) - new Date(b.start))
+      .filter((slot) => new Date(slot.start) < dayEnd && new Date(slot.end) > dayStart)
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
       .forEach((busy) => {
         const busyStart = new Date(busy.start);
         const busyEnd = new Date(busy.end);
   
         if (pointer < busyStart) {
-          const gapMinutes = (busyStart - pointer) / (60 * 1000);
+          const gapMinutes = (busyStart.getTime() - pointer.getTime()) / (60 * 1000);
           if (gapMinutes >= meetingLengthMinutes) {
-            freeSlots.push({ start: new Date(pointer), end: new Date(pointer.getTime() + meetingLengthMinutes * 60000) });
+            freeSlots.push({
+              start: new Date(pointer),
+              end: new Date(pointer.getTime() + meetingLengthMinutes * 60000),
+            });
           }
         }
   
@@ -628,9 +637,12 @@ class GoogleWorkspaceServer {
       });
   
     if (pointer < dayEnd) {
-      const gapMinutes = (dayEnd - pointer) / (60 * 1000);
+      const gapMinutes = (dayEnd.getTime() - pointer.getTime()) / (60 * 1000);
       if (gapMinutes >= meetingLengthMinutes) {
-        freeSlots.push({ start: new Date(pointer), end: new Date(pointer.getTime() + meetingLengthMinutes * 60000) });
+        freeSlots.push({
+          start: new Date(pointer),
+          end: new Date(pointer.getTime() + meetingLengthMinutes * 60000),
+        });
       }
     }
   
