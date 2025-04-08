@@ -204,64 +204,22 @@ class GoogleWorkspaceServer {
             required: ['summary', 'start', 'end']
           },
         },
-        /**
-        * Removing event deletion because Google Calendar API does 
-        * not have a scope that allows event creation but
-        * prohibits deletion/updates.
         {
-          name: 'update_event',
-          description: 'Update an existing calendar event',
+          name: 'meeting_suggestion',
+          description: 'Suggest available meeting slots within the next 30 days',
           inputSchema: {
             type: 'object',
             properties: {
-              eventId: {
-                type: 'string',
-                description: 'Event ID to update',
-              },
-              summary: {
-                type: 'string',
-                description: 'New event title',
-              },
-              location: {
-                type: 'string',
-                description: 'New event location',
-              },
-              description: {
-                type: 'string',
-                description: 'New event description',
-              },
-              start: {
-                type: 'string',
-                description: 'New start time in ISO format',
-              },
-              end: {
-                type: 'string',
-                description: 'New end time in ISO format',
-              },
-              attendees: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'New list of attendee email addresses',
-              },
+              meetingLengthMinutes: { type: 'number', description: 'Meeting length in minutes (default: 60)' },
+              workingHoursStart: { type: 'number', description: 'Start of working hours (24h format, default: 9)' },
+              workingHoursEnd: { type: 'number', description: 'End of working hours (24h format, default: 17)' },
+              timezone: { type: 'string', description: 'Timezone for scheduling (default: America/Sao_Paulo)' },
+              slotsPerDay: { type: 'number', description: 'Number of slots per day to suggest (default: 1)' },
+              daysToSearch: { type: 'number', description: 'Number of days to find slots for (default: 3)' },
+              bankHolidays: { type: 'array', items: { type: 'string' }, description: 'List of bank holiday dates in YYYY-MM-DD format' },
             },
-            required: ['eventId']
           },
-        },
-        {
-          name: 'delete_event',
-          description: 'Delete a calendar event',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              eventId: {
-                type: 'string',
-                description: 'Event ID to delete',
-              },
-            },
-            required: ['eventId']
-          },
-        },
-        */
+        }
       ],
     }));
 
@@ -530,91 +488,7 @@ class GoogleWorkspaceServer {
       };
     }
   }
-  /**
-  / Update and remove calendar events are disable.
   
-  private async handleUpdateEvent(args: any) {
-    try {
-      const { eventId, summary, location, description, start, end, attendees } = args;
-
-      const event: any = {};
-      if (summary) event.summary = summary;
-      if (location) event.location = location;
-      if (description) event.description = description;
-      if (start) {
-        event.start = {
-          dateTime: start,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        };
-      }
-      if (end) {
-        event.end = {
-          dateTime: end,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        };
-      }
-      if (attendees) {
-        event.attendees = attendees.map((email: string) => ({ email }));
-      }
-
-      const response = await this.calendar.events.patch({
-        calendarId: 'primary',
-        eventId,
-        requestBody: event,
-      });
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Event updated successfully. Event ID: ${response.data.id}`,
-          },
-        ],
-      };
-    } catch (error: any) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Error updating event: ${error.message}`,
-          },
-        ],
-        isError: true,
-      };
-    }
-  }
-
-  private async handleDeleteEvent(args: any) {
-    try {
-      const { eventId } = args;
-
-      await this.calendar.events.delete({
-        calendarId: 'primary',
-        eventId,
-      });
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Event deleted successfully. Event ID: ${eventId}`,
-          },
-        ],
-      };
-    } catch (error: any) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Error deleting event: ${error.message}`,
-          },
-        ],
-        isError: true,
-      };
-    }
-  }
-  */
-
   private async handleListEvents(args: any) {
     try {
       const maxResults = args?.maxResults || 10;
@@ -658,6 +532,113 @@ class GoogleWorkspaceServer {
       };
     }
   }
+
+  private async handleMeetingSuggestion(args: any) {
+    try {
+      const meetingLength = args?.meetingLengthMinutes || 60;
+      const workStartHour = args?.workingHoursStart || 9;
+      const workEndHour = args?.workingHoursEnd || 17;
+      const timezone = args?.timezone || 'America/Sao_Paulo';
+      const slotsPerDay = args?.slotsPerDay || 1;
+      const daysToSearch = args?.daysToSearch || 3;
+      const bankHolidays = args?.bankHolidays || [];
+  
+      const suggestions: any[] = [];
+  
+      const today = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
+      today.setHours(0,0,0,0);
+  
+      const endDate = new Date(today);
+      endDate.setDate(endDate.getDate() + 30);
+  
+      const busyResponse = await this.calendar.freebusy.query({
+        requestBody: {
+          timeMin: today.toISOString(),
+          timeMax: endDate.toISOString(),
+          timeZone: timezone,
+          items: [{ id: 'primary' }],
+        },
+      });
+
+      const busySlots = busyResponse.data.calendars?.primary?.busy || [];
+  
+      const dayPointer = new Date(today);
+
+      while (suggestions.length < daysToSearch && dayPointer < endDate) {
+        const dayOfWeek = dayPointer.getDay();
+        const formattedDate = dayPointer.toISOString().split('T')[0];
+        if (dayOfWeek !== 0 && dayOfWeek !== 6 && !bankHolidays.includes(formattedDate)) {
+          const dayStart = new Date(dayPointer);
+          dayStart.setHours(workStartHour, 0, 0, 0);
+  
+          const dayEnd = new Date(dayPointer);
+          dayEnd.setHours(workEndHour, 0, 0, 0);
+  
+          const freeSlots = this.findFreeSlots(busySlots, dayStart, dayEnd, meetingLength);
+  
+          if (freeSlots.length > 0) {
+            suggestions.push(...freeSlots.slice(0, slotsPerDay).map(slot => ({
+              start: slot.start.toISOString(),
+              end: slot.end.toISOString(),
+            })));
+          }
+        }
+  
+        dayPointer.setDate(dayPointer.getDate() + 1);
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(suggestions, null, 2),
+          },
+        ],
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Error suggesting meetings: ${error.message}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+
+  private findFreeSlots(busySlots, dayStart, dayEnd, meetingLengthMinutes) {
+    const freeSlots = [];
+    let pointer = new Date(dayStart);
+  
+    busySlots
+      .filter(slot => new Date(slot.start) < dayEnd && new Date(slot.end) > dayStart)
+      .sort((a, b) => new Date(a.start) - new Date(b.start))
+      .forEach((busy) => {
+        const busyStart = new Date(busy.start);
+        const busyEnd = new Date(busy.end);
+  
+        if (pointer < busyStart) {
+          const gapMinutes = (busyStart - pointer) / (60 * 1000);
+          if (gapMinutes >= meetingLengthMinutes) {
+            freeSlots.push({ start: new Date(pointer), end: new Date(pointer.getTime() + meetingLengthMinutes * 60000) });
+          }
+        }
+  
+        if (pointer < busyEnd) pointer = new Date(busyEnd);
+      });
+  
+    if (pointer < dayEnd) {
+      const gapMinutes = (dayEnd - pointer) / (60 * 1000);
+      if (gapMinutes >= meetingLengthMinutes) {
+        freeSlots.push({ start: new Date(pointer), end: new Date(pointer.getTime() + meetingLengthMinutes * 60000) });
+      }
+    }
+  
+    return freeSlots;
+  }
+
 
   async run() {
     const transport = new StdioServerTransport();
