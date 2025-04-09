@@ -581,10 +581,10 @@ class GoogleWorkspaceServer {
         while (daysWithSlotsFound < daysToSearch && dayPointer < endDate) {
         const dayOfWeek = dayPointer.weekday;        
         const formattedDate = dayPointer.toISODate();
-        if (dayOfWeek !== 0 && dayOfWeek !== 6 && !bankHolidays.includes(formattedDate)) {
+        if (dayOfWeek < 6 && !bankHolidays.includes(formattedDate)) {
           // Ensure dayPointer is a DateTime object in your timezone
           
-                    let dayStart = dayPointer.set({ hour: workStartHour, minute: 0, second: 0, millisecond: 0 });
+          let dayStart = dayPointer.set({ hour: workStartHour, minute: 0, second: 0, millisecond: 0 });
           let dayEnd = dayPointer.set({ hour: workEndHour, minute: 0, second: 0, millisecond: 0 });
 
           // Now explicitly pass native Dates to your findFreeSlots
