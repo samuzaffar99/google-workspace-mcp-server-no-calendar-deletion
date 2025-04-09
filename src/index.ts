@@ -568,6 +568,7 @@ class GoogleWorkspaceServer {
           items: calendarIds.map((id: string) => ({ id })),
         },
       });
+      console.log("Freebusy Response:", JSON.stringify(busyResponse.data, null, 2));
 
       const busySlots = calendarIds.flatMap(
         (id: string) => busyResponse.data.calendars?.[id]?.busy || []
