@@ -564,10 +564,14 @@ class GoogleWorkspaceServer {
         requestBody: {
           timeMin: startDate.toISOString(),
           timeMax: endDate.toISOString(),
-          //timeZone: timezone,
+          timeZone: timezone,
           items: calendarIds.map((id: string) => ({ id })),
         },
       });
+
+      console.log("##########################################################################\n");
+      console.log("##########################################################################\n");
+      console.log("##########################################################################\n");
       console.log("Freebusy Response:", JSON.stringify(busyResponse.data, null, 2));
 
       const busySlots = calendarIds.flatMap(
@@ -628,56 +632,38 @@ class GoogleWorkspaceServer {
   ): Array<{ start: Date; end: Date }> {
     const freeSlots: Array<{ start: Date; end: Date }> = [];
     let pointer = new Date(dayStart);
-    
-    // Sort busy slots by start time
+  
+    // Sort busy slots
     const sortedBusySlots = busySlots
       .filter((slot) => new Date(slot.start) < dayEnd && new Date(slot.end) > dayStart)
       .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-    
-    // Find free periods between busy slots
+  
     for (const busy of sortedBusySlots) {
       const busyStart = new Date(busy.start);
       const busyEnd = new Date(busy.end);
-      
-      // Check if there's a free period before this busy slot
-      if (pointer < busyStart) {
-        const gapMinutes = (busyStart.getTime() - pointer.getTime()) / (60 * 1000);
-        
-        // If gap is large enough, add multiple meeting slots
-        if (gapMinutes >= meetingLengthMinutes) {
-          // Add as many meeting slots as will fit in this gap
-          const slotsToAdd = Math.floor(gapMinutes / meetingLengthMinutes);
-          for (let i = 0; i < slotsToAdd; i++) {
-            const slotStart = new Date(pointer.getTime() + i * meetingLengthMinutes * 60000);
-            freeSlots.push({
-              start: new Date(slotStart),
-              end: new Date(slotStart.getTime() + meetingLengthMinutes * 60000),
-            });
-          }
-        }
+  
+      // While loop to add multiple slots before busyStart
+      while ((busyStart.getTime() - pointer.getTime()) >= (meetingLengthMinutes * 60000)) {
+        freeSlots.push({
+          start: new Date(pointer),
+          end: new Date(pointer.getTime() + meetingLengthMinutes * 60000),
+        });
+        pointer.setTime(pointer.getTime() + meetingLengthMinutes * 60000);
       }
-      
-      // Move pointer past this busy slot
+  
+      // Move pointer to after the busy slot if pointer overlaps busy
       if (pointer < busyEnd) pointer = new Date(busyEnd);
     }
-    
-    // Check for any remaining free time at the end of the day
-    if (pointer < dayEnd) {
-      const gapMinutes = (dayEnd.getTime() - pointer.getTime()) / (60 * 1000);
-      
-      if (gapMinutes >= meetingLengthMinutes) {
-        // Add as many meeting slots as will fit in this gap
-        const slotsToAdd = Math.floor(gapMinutes / meetingLengthMinutes);
-        for (let i = 0; i < slotsToAdd; i++) {
-          const slotStart = new Date(pointer.getTime() + i * meetingLengthMinutes * 60000);
-          freeSlots.push({
-            start: new Date(slotStart),
-            end: new Date(slotStart.getTime() + meetingLengthMinutes * 60000),
-          });
-        }
-      }
+  
+    // After last busy slot: fill remaining time until dayEnd
+    while ((dayEnd.getTime() - pointer.getTime()) >= (meetingLengthMinutes * 60000)) {
+      freeSlots.push({
+        start: new Date(pointer),
+        end: new Date(pointer.getTime() + meetingLengthMinutes * 60000),
+      });
+      pointer.setTime(pointer.getTime() + meetingLengthMinutes * 60000);
     }
-    
+  
     return freeSlots;
   }
 
