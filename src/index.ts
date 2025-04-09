@@ -210,6 +210,7 @@ class GoogleWorkspaceServer {
           inputSchema: {
             type: 'object',
             properties: {
+              calendarIds: { type: 'array', items: { type: 'string' }, description: 'List of Google Calendar IDs (default: ["primary"])',},
               meetingLengthMinutes: { type: 'number', description: 'Meeting length in minutes (default: 60)' },
               workingHoursStart: { type: 'number', description: 'Start of working hours (24h format, default: 9)' },
               workingHoursEnd: { type: 'number', description: 'End of working hours (24h format, default: 17)' },
@@ -541,6 +542,7 @@ class GoogleWorkspaceServer {
     const daysToSearch = args?.daysToSearch || 3;
     const maxDaysToLookAhead = args?.maxDaysToLookAhead || 30; // New parameter with default
     const bankHolidays = args?.bankHolidays || [];
+    const calendarIds = args?.calendarIds || ['primary'];
     
     // Parse start date if provided, otherwise use tomorrow.
     let startDate;
@@ -563,11 +565,17 @@ startDate.setHours(0,0,0,0);
         timeMin: startDate.toISOString(),
         timeMax: endDate.toISOString(),
         timeZone: timezone,
-        items: [{ id: 'camilagolin3@gmail.com' }],
+        items: calendarIds.map((id: string) => ({ id })),
       },
     });
-    const busySlots = (busyResponse.data.calendars?.primary?.busy || [])
-      .filter((slot): slot is { start: string; end: string } => !!slot.start && !!slot.end);
+
+    const busySlots = calendarIds.flatMap(
+        id => busyResponse.data.calendars?.[id]?.busy || []
+      ).filter((slot): slot is { start: string; end: string } => !!slot.start && !!slot.end);
+
+    
+    //const busySlots = (busyResponse.data.calendars?.primary?.busy || [])
+    //  .filter((slot): slot is { start: string; end: string } => !!slot.start && !!slot.end);
 
     const dayPointer = new Date(startDate);
     while (daysWithSlotsFound < daysToSearch && dayPointer < endDate) {
