@@ -591,14 +591,18 @@ class GoogleWorkspaceServer {
 
           const freeSlots = this.findFreeSlots(busySlots, dayStart, dayEnd, meetingLength);
 
-          if (freeSlots.length > 0) {
-            // Add slots for this day and increment the counter
-            suggestions.push(...freeSlots.slice(0, slotsPerDay).map(slot => ({
+          // Collect up to `slotsPerDay` slots for this day
+          let slotsAddedToday = 0;
+          for (const slot of freeSlots) {
+            if (slotsAddedToday >= slotsPerDay) break;
+            suggestions.push({
               start: slot.start.toISOString(),
               end: slot.end.toISOString(),
-            })));
-            daysWithSlotsFound++; // Count this as a day with slots
+            });
+            slotsAddedToday++;
           }
+          
+          daysWithSlotsFound++;  // counts this day as processed
         }
 
         dayPointer.setDate(dayPointer.getDate() + 1);
