@@ -564,7 +564,7 @@ class GoogleWorkspaceServer {
         requestBody: {
           timeMin: startDate.toISOString(),
           timeMax: endDate.toISOString(),
-          timeZone: timezone,
+          //timeZone: timezone,
           items: calendarIds.map((id: string) => ({ id })),
         },
       });
