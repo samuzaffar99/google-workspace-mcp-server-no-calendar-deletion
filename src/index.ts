@@ -210,13 +210,48 @@ class GoogleWorkspaceServer {
           inputSchema: {
             type: 'object',
             properties: {
-              meetingLengthMinutes: { type: 'number', description: 'Meeting length in minutes (default: 60)' },
-              workingHoursStart: { type: 'number', description: 'Start of working hours (24h format, default: 9)' },
-              workingHoursEnd: { type: 'number', description: 'End of working hours (24h format, default: 17)' },
-              timezone: { type: 'string', description: 'Timezone for scheduling (default: America/Sao_Paulo)' },
-              slotsPerDay: { type: 'number', description: 'Number of slots per day to suggest (default: 1)' },
-              daysToSearch: { type: 'number', description: 'Number of days to find slots for (default: 3)' },
-              bankHolidays: { type: 'array', items: { type: 'string' }, description: 'List of bank holiday dates in YYYY-MM-DD format' },
+              calendarIds: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'List of Google Calendar IDs (default: ["primary"])',
+              },
+              meetingLengthMinutes: {
+                type: 'number',
+                description: 'Meeting length in minutes (default: 60)',
+              },
+              workingHoursStart: {
+                type: 'number',
+                description: 'Start of working hours (24h, default: 9)',
+              },
+              workingHoursEnd: {
+                type: 'number',
+                description: 'End of working hours (24h, default: 17)',
+              },
+              timezone: {
+                type: 'string',
+                description: 'Timezone (default: America/Sao_Paulo)',
+              },
+              slotsPerDay: {
+                type: 'number',
+                description: 'Number of slots per day (default: 1)',
+              },
+              daysToSearch: {
+                type: 'number',
+                description: 'Number of days to suggest slots for (default: 3)',
+              },
+              bankHolidays: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Bank holiday dates (YYYY-MM-DD)',
+              },
+              startDate: {
+                type: 'string',
+                description: 'Start date in ISO format (default: tomorrow)',
+              },
+              maxDaysToLookAhead: {
+                type: 'number',
+                description: 'Max days to search ahead (default: 30)',
+              },
             },
           },
         }
@@ -532,149 +567,116 @@ class GoogleWorkspaceServer {
   }
 
   private async handleMeetingSuggestion(args: any) {
-  try {
-    const meetingLength = args?.meetingLengthMinutes || 60;
-    const workStartHour = args?.workingHoursStart || 9;
-    const workEndHour = args?.workingHoursEnd || 17;
-    const timezone = args?.timezone || 'America/Sao_Paulo';
-    const slotsPerDay = args?.slotsPerDay || 1;
-    const daysToSearch = args?.daysToSearch || 3;
-    const maxDaysToLookAhead = args?.maxDaysToLookAhead || 30; // New parameter with default
-    const bankHolidays = args?.bankHolidays || [];
-    
-    // Parse start date if provided, otherwise use tomorrow.
-    let startDate;
-if (args?.startDate) {
-  startDate = new Date(args.startDate);
-} else {
-  startDate = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
-  startDate.setDate(startDate.getDate() + 1); // Add 1 day to default to tomorrow
-}
-startDate.setHours(0,0,0,0);
+    try {
+      const meetingLength = args?.meetingLengthMinutes || 60;
+      const workStartHour = args?.workingHoursStart || 9;
+      const workEndHour = args?.workingHoursEnd || 17;
+      const timezone = args?.timezone || 'America/Sao_Paulo';
+      const slotsPerDay = args?.slotsPerDay || 1;
+      const daysToSearch = args?.daysToSearch || 3;
+      const maxDaysToLookAhead = args?.maxDaysToLookAhead || 30;
+      const bankHolidays = args?.bankHolidays || [];
+      const calendarIds = args?.calendarIds || ['primary'];
 
-    const suggestions: any[] = [];
-    let daysWithSlotsFound = 0; // Track days with slots
+      let startDate = args?.startDate ? new Date(args.startDate) : new Date();
+      startDate = new Date(startDate.toLocaleString('en-US', { timeZone: timezone }));
+      startDate.setDate(startDate.getDate() + (args?.startDate ? 0 : 1));
+      startDate.setHours(0, 0, 0, 0);
 
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + maxDaysToLookAhead);
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + maxDaysToLookAhead);
 
-    const busyResponse = await this.calendar.freebusy.query({
-      requestBody: {
-        timeMin: startDate.toISOString(),
-        timeMax: endDate.toISOString(),
-        timeZone: timezone,
-        items: [{ id: 'camilagolin3@gmail.com' }],
-      },
-    });
-    const busySlots = (busyResponse.data.calendars?.primary?.busy || [])
-      .filter((slot): slot is { start: string; end: string } => !!slot.start && !!slot.end);
+      const busyResponse = await this.calendar.freebusy.query({
+        requestBody: {
+          timeMin: startDate.toISOString(),
+          timeMax: endDate.toISOString(),
+          timeZone: timezone,
+          items: calendarIds.map((id: string) => ({ id })),
+        },
+      });
 
-    const dayPointer = new Date(startDate);
-    while (daysWithSlotsFound < daysToSearch && dayPointer < endDate) {
-      const dayOfWeek = dayPointer.getDay();
-      const formattedDate = dayPointer.toISOString().split('T')[0];
-      if (dayOfWeek !== 0 && dayOfWeek !== 6 && !bankHolidays.includes(formattedDate)) {
-        const dayStart = new Date(dayPointer);
-        dayStart.setHours(workStartHour, 0, 0, 0);
+      const busySlots = calendarIds.flatMap(
+        id => busyResponse.data.calendars?.[id]?.busy || []
+      ).filter((slot): slot is { start: string; end: string } => !!slot.start && !!slot.end);
 
-        const dayEnd = new Date(dayPointer);
-        dayEnd.setHours(workEndHour, 0, 0, 0);
+      const suggestions: any[] = [];
+      let daysWithSlotsFound = 0;
 
-        const freeSlots = this.findFreeSlots(busySlots, dayStart, dayEnd, meetingLength);
+      const dayPointer = new Date(startDate);
 
-        if (freeSlots.length > 0) {
-          // Add slots for this day and increment the counter
-          suggestions.push(...freeSlots.slice(0, slotsPerDay).map(slot => ({
-            start: slot.start.toISOString(),
-            end: slot.end.toISOString(),
-          })));
-          daysWithSlotsFound++; // Count this as a day with slots
+      while (daysWithSlotsFound < daysToSearch && dayPointer < endDate) {
+        const dayOfWeek = dayPointer.getDay();
+        const formattedDate = dayPointer.toISOString().split('T')[0];
+
+        if (dayOfWeek !== 0 && dayOfWeek !== 6 && !bankHolidays.includes(formattedDate)) {
+          const dayStart = new Date(dayPointer);
+          dayStart.setHours(workStartHour, 0, 0, 0);
+
+          const dayEnd = new Date(dayPointer);
+          dayEnd.setHours(workEndHour, 0, 0, 0);
+
+          const freeSlots = this.findFreeSlots(busySlots, dayStart, dayEnd, meetingLength);
+
+          if (freeSlots.length > 0) {
+            suggestions.push(...freeSlots.slice(0, slotsPerDay).map(slot => ({
+              start: slot.start.toISOString(),
+              end: slot.end.toISOString(),
+            })));
+            daysWithSlotsFound++;
+          }
         }
+
+        dayPointer.setDate(dayPointer.getDate() + 1);
       }
 
-      dayPointer.setDate(dayPointer.getDate() + 1);
+      return { content: [{ type: 'text', text: JSON.stringify(suggestions, null, 2) }] };
+
+    } catch (error: any) {
+      return { content: [{ type: 'text', text: `Error: ${error.message}` }], isError: true };
     }
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(suggestions, null, 2),
-        },
-      ],
-    };
-  } catch (error: any) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Error suggesting meetings: ${error.message}`,
-        },
-      ],
-      isError: true,
-    };
   }
-}
 
   private findFreeSlots(
-  busySlots: Array<{ start: string; end: string }>,
-  dayStart: Date,
-  dayEnd: Date,
-  meetingLengthMinutes: number
-): Array<{ start: Date; end: Date }> {
-  const freeSlots: Array<{ start: Date; end: Date }> = [];
-  let pointer = new Date(dayStart);
-  
-  // Sort busy slots by start time
-  const sortedBusySlots = busySlots
-    .filter((slot) => new Date(slot.start) < dayEnd && new Date(slot.end) > dayStart)
-    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-  
-  // Find free periods between busy slots
-  for (const busy of sortedBusySlots) {
-    const busyStart = new Date(busy.start);
-    const busyEnd = new Date(busy.end);
-    
-    // Check if there's a free period before this busy slot
-    if (pointer < busyStart) {
-      const gapMinutes = (busyStart.getTime() - pointer.getTime()) / (60 * 1000);
-      
-      // If gap is large enough, add multiple meeting slots
-      if (gapMinutes >= meetingLengthMinutes) {
-        // Add as many meeting slots as will fit in this gap
-        const slotsToAdd = Math.floor(gapMinutes / meetingLengthMinutes);
-        for (let i = 0; i < slotsToAdd; i++) {
-          const slotStart = new Date(pointer.getTime() + i * meetingLengthMinutes * 60000);
+    busySlots: Array<{ start: string; end: string }>,
+    dayStart: Date,
+    dayEnd: Date,
+    meetingLengthMinutes: number
+  ): Array<{ start: Date; end: Date }> {
+    const freeSlots: Array<{ start: Date; end: Date }> = [];
+    let pointer = new Date(dayStart);
+
+    const sortedBusySlots = busySlots
+      .filter(slot => new Date(slot.start) < dayEnd && new Date(slot.end) > dayStart)
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+
+    for (const busy of sortedBusySlots) {
+      const busyStart = new Date(busy.start);
+      const busyEnd = new Date(busy.end);
+
+      if (pointer < busyStart) {
+        const gapMinutes = (busyStart.getTime() - pointer.getTime()) / (60 * 1000);
+        if (gapMinutes >= meetingLengthMinutes) {
           freeSlots.push({
-            start: new Date(slotStart),
-            end: new Date(slotStart.getTime() + meetingLengthMinutes * 60000),
+            start: new Date(pointer),
+            end: new Date(pointer.getTime() + meetingLengthMinutes * 60000),
           });
         }
       }
+      if (pointer < busyEnd) pointer = new Date(busyEnd);
     }
-    
-    // Move pointer past this busy slot
-    if (pointer < busyEnd) pointer = new Date(busyEnd);
-  }
-  
-  // Check for any remaining free time at the end of the day
-  if (pointer < dayEnd) {
-    const gapMinutes = (dayEnd.getTime() - pointer.getTime()) / (60 * 1000);
-    
-    if (gapMinutes >= meetingLengthMinutes) {
-      // Add as many meeting slots as will fit in this gap
-      const slotsToAdd = Math.floor(gapMinutes / meetingLengthMinutes);
-      for (let i = 0; i < slotsToAdd; i++) {
-        const slotStart = new Date(pointer.getTime() + i * meetingLengthMinutes * 60000);
+
+    if (pointer < dayEnd) {
+      const gapMinutes = (dayEnd.getTime() - pointer.getTime()) / (60 * 1000);
+      if (gapMinutes >= meetingLengthMinutes) {
         freeSlots.push({
-          start: new Date(slotStart),
-          end: new Date(slotStart.getTime() + meetingLengthMinutes * 60000),
+          start: new Date(pointer),
+          end: new Date(pointer.getTime() + meetingLengthMinutes * 60000),
         });
       }
     }
+
+    return freeSlots;
   }
-  
-  return freeSlots;
-}
 
 
   async run() {
