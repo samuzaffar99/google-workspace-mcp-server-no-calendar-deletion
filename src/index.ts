@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { DateTime } from 'luxon';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -544,26 +545,24 @@ class GoogleWorkspaceServer {
       const bankHolidays = args?.bankHolidays || [];
       const calendarIds = args?.calendarIds || ['primary'];
       
-      // Parse start date if provided, otherwise use tomorrow.
-      let startDate;
-      if (args?.startDate) {
-        startDate = new Date(args.startDate);
-      } else {
-        startDate = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
-        startDate.setDate(startDate.getDate() + 1); // Add 1 day to default to tomorrow
-      }
-      startDate.setHours(0,0,0,0);
-
+      // Corrected timezone-aware logic using Luxon
       const suggestions: any[] = [];
       let daysWithSlotsFound = 0; // Track days with slots
 
-      const endDate = new Date(startDate);
-      endDate.setDate(endDate.getDate() + maxDaysToLookAhead);
+      let startDate;
+      if (args?.startDate) {
+        startDate = DateTime.fromISO(args.startDate, { zone: timezone }).startOf('day');
+      } else {
+        // Default to tomorrow in the specified timezone
+        startDate = DateTime.now().setZone(timezone).plus({ days: 1 }).startOf('day');
+      }
+
+      const endDate = startDate.plus({ days: maxDaysToLookAhead }).endOf('day');
 
       const busyResponse = await this.calendar.freebusy.query({
         requestBody: {
-          timeMin: startDate.toISOString(),
-          timeMax: endDate.toISOString(),
+          timeMin: startDate.toISO(),
+          timeMax: endDate.toISO(),
           timeZone: timezone,
           items: calendarIds.map((id: string) => ({ id })),
         },
@@ -583,13 +582,23 @@ class GoogleWorkspaceServer {
         const dayOfWeek = dayPointer.getDay();
         const formattedDate = dayPointer.toISOString().split('T')[0];
         if (dayOfWeek !== 0 && dayOfWeek !== 6 && !bankHolidays.includes(formattedDate)) {
-          const dayStart = new Date(dayPointer);
-          dayStart.setHours(workStartHour, 0, 0, 0);
+          // Ensure dayPointer is a DateTime object in your timezone
+          const dayPointerDT = DateTime.fromJSDate(dayPointer, { zone: timezone });
 
-          const dayEnd = new Date(dayPointer);
-          dayEnd.setHours(workEndHour, 0, 0, 0);
+          let dayStart = dayPointerDT.set({ hour: workStartHour, minute: 0, second: 0, millisecond: 0 });
+          let dayEnd = dayPointerDT.set({ hour: workEndHour, minute: 0, second: 0, millisecond: 0 });
+
+          // Convert to JS Date for compatibility with findFreeSlots
+          dayStart = dayStart.toJSDate();
+          dayEnd = dayEnd.toJSDate();
 
           const freeSlots = this.findFreeSlots(busySlots, dayStart, dayEnd, meetingLength);
+
+
+          console.log("###### Busy slots received####################################################################\n");
+          console.log('Busy slots received:', busySlots);
+          console.log("###### FREE slots received####################################################################\n");
+          console.log('Free slots calculated:', freeSlots);
 
           // Collect up to `slotsPerDay` slots for this day
           let slotsAddedToday = 0;
