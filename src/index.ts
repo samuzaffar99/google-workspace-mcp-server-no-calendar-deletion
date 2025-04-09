@@ -606,8 +606,8 @@ class GoogleWorkspaceServer {
           for (const slot of freeSlots) {
             if (slotsAddedToday >= slotsPerDay) break;
             suggestions.push({
-              start: slot.start.toISOString(),
-              end: slot.end.toISOString(),
+              start: DateTime.fromJSDate(slot.start).setZone(timezone).toISO(),
+              end: DateTime.fromJSDate(slot.end).setZone(timezone).toISO(),
             });
             slotsAddedToday++;
           }
