@@ -577,22 +577,23 @@ class GoogleWorkspaceServer {
         (id: string) => busyResponse.data.calendars?.[id]?.busy || []
       ).filter((slot: { start?: string; end?: string }): slot is { start: string; end: string } => !!slot.start && !!slot.end);
 
-      const dayPointer = new Date(startDate);
-      while (daysWithSlotsFound < daysToSearch && dayPointer < endDate) {
-        const dayOfWeek = dayPointer.getDay();
-        const formattedDate = dayPointer.toISOString().split('T')[0];
+        let dayPointer = startDate; // Luxon DateTime
+        while (daysWithSlotsFound < daysToSearch && dayPointer < endDate) {
+        const dayOfWeek = dayPointer.weekday;        
+        const formattedDate = dayPointer.toISODate();
         if (dayOfWeek !== 0 && dayOfWeek !== 6 && !bankHolidays.includes(formattedDate)) {
           // Ensure dayPointer is a DateTime object in your timezone
-          const dayPointerDT = DateTime.fromJSDate(dayPointer, { zone: timezone });
+          
+                    let dayStart = dayPointer.set({ hour: workStartHour, minute: 0, second: 0, millisecond: 0 });
+          let dayEnd = dayPointer.set({ hour: workEndHour, minute: 0, second: 0, millisecond: 0 });
 
-          let dayStart = dayPointerDT.set({ hour: workStartHour, minute: 0, second: 0, millisecond: 0 });
-          let dayEnd = dayPointerDT.set({ hour: workEndHour, minute: 0, second: 0, millisecond: 0 });
-
-          // Convert to JS Date for compatibility with findFreeSlots
-          dayStart = dayStart.toJSDate();
-          dayEnd = dayEnd.toJSDate();
-
-          const freeSlots = this.findFreeSlots(busySlots, dayStart, dayEnd, meetingLength);
+          // Now explicitly pass native Dates to your findFreeSlots
+          const freeSlots = this.findFreeSlots(
+            busySlots,
+            dayStart.toJSDate(),
+            dayEnd.toJSDate(),
+            meetingLength
+          );
 
 
           console.log("###### Busy slots received####################################################################\n");
@@ -614,7 +615,7 @@ class GoogleWorkspaceServer {
           daysWithSlotsFound++;  // counts this day as processed
         }
 
-        dayPointer.setDate(dayPointer.getDate() + 1);
+        dayPointer = dayPointer.plus({ days: 1 });
       }
       return {
         content: [
