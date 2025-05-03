@@ -538,7 +538,7 @@ class GoogleWorkspaceServer {
       const timeMax = args?.timeMax;
 
       const response = await this.calendar.events.list({
-        calendarId: "camilagolin3@gmail.com",
+        calendarId: "primary",
         timeMin,
         timeMax,
         maxResults,
