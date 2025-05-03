@@ -1,7 +1,7 @@
 import { google } from 'googleapis';
 import { authenticate } from '@google-cloud/local-auth';
-import { writeFileSync } from 'fs';
-import { join } from 'path';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const SCOPES = [
   'https://www.googleapis.com/auth/gmail.modify',
