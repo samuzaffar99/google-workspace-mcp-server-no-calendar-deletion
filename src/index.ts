@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { DateTime } from "luxon";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -9,6 +8,7 @@ import {
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
 import { google } from "googleapis";
+import { DateTime } from "luxon";
 
 // Environment variables required for OAuth
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -88,7 +88,6 @@ class GoogleWorkspaceServer {
                 type: "string",
                 description:
                   'Gmail search query (e.g., "from:example@gmail.com has:attachment")',
-                required: true,
               },
               maxResults: {
                 type: "number",
