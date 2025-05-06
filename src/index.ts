@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { auth, calendar } from "@googleapis/calendar";
+import { gmail } from "@googleapis/gmail";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -7,7 +9,6 @@ import {
   ListToolsRequestSchema,
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
-import { google } from "googleapis";
 import { DateTime } from "luxon";
 
 // Environment variables required for OAuth
@@ -41,12 +42,12 @@ class GoogleWorkspaceServer {
     );
 
     // Set up OAuth2 client
-    this.auth = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET);
+    this.auth = new auth.OAuth2(CLIENT_ID, CLIENT_SECRET);
     this.auth.setCredentials({ refresh_token: REFRESH_TOKEN });
 
     // Initialize API clients
-    this.gmail = google.gmail({ version: "v1", auth: this.auth });
-    this.calendar = google.calendar({ version: "v3", auth: this.auth });
+    this.gmail = gmail({ version: "v1", auth: this.auth });
+    this.calendar = calendar({ version: "v3", auth: this.auth });
 
     this.setupToolHandlers();
 
